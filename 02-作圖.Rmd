@@ -1,0 +1,274 @@
+---
+title: "02-就職演說_作圖"
+author: "chiatzu"
+date: '2024-05-20'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Packages
+```{r}
+library(tidyverse)
+library(stringr)
+library(ggplot2)
+library(showtext)
+library(ggthemes)
+library(patchwork)
+
+library(sf)
+
+
+
+library(hrbrthemes)
+library(GGally)
+library(viridis)
+
+library(httr)
+library(rvest) # for traversing html structure
+library(jsonlite)
+
+showtext_auto(enable = TRUE)
+font_add("GenJyuuGothic Heavy","GenJyuuGothic-Heavy.ttf")
+font_add("GenJyuuGothic Medium","GenJyuuGothic-Medium.ttf")
+font_add("GenJyuuGothic Light", "GenJyuuGothic-Light.ttf")
+font_add("jf-jinxuan-3.0 ExtraBold","jf-jinxuan-3.0-extrabold.otf")
+font_add("jf-jinxuan-3.0 medium","jf-jinxuan-3.0-medium.otf")
+font_add("jf-jinxuan-3.0 Book", "jf-jinxuan-3.0-book.otf")
+
+
+
+th <- 
+  theme(
+    plot.title = element_text(size=28, family="jf-jinxuan-3.0 ExtraBold", color="#3E3B3A"),
+    plot.subtitle = element_text(size=17,family="jf-jinxuan-3.0 medium", margin = margin(7, 1, 20, 0), color="#3E3B3A" ),
+    axis.title.x = element_text(size=16,family="jf-jinxuan-3.0 ExtraBold", color="#3E3B3A"),
+    axis.title.y = element_text(size=16,family="jf-jinxuan-3.0 ExtraBold", color="#3E3B3A"),
+    axis.text.x = element_text(size=12,family="jf-jinxuan-3.0 medium", color="#3E3B3A"),
+    axis.text.y = element_text(size=10,family="jf-jinxuan-3.0 medium", color="#3E3B3A"),
+    legend.text = element_text(size=12,family="jf-jinxuan-3.0 medium", color="#3E3B3A"),
+    legend.title = element_text(size=12,family="jf-jinxuan-3.0 medium", color="#3E3B3A"),
+    plot.caption  = element_text(color="#888888",size=8,family="jf-jinxuan-3.0 medium", ), #hjust = 1.1, vjust=-7
+    plot.title.position = "plot", # 讓字從最左邊出現
+    plot.margin = margin(2.5, 2.5, 2.5, 2.5, "lines"), # 調整主圖表外的margin
+    
+    legend.background = element_rect(fill = "#FFFFFF", color="black"),
+    plot.background = element_rect( fill = "#FFFFFF", colour = "#5aad69", size = 10 ),
+    panel.background = element_rect(fill = "#FFFFFF"), 
+  )
+
+
+```
+```{r}
+data <- read_csv("data/speech_tokenized.csv") %>%
+  select(index, 總統, 黨派, 年份, 屆次, 演說, words)
+
+data %>%
+  filter( 屆次 == 16 ) %>%
+  filter( words == "AI")
+
+
+data %>% head(2)
+```
+
+```{r}
+stop_word <- readRDS("../lib/stopWords.rds") %>% select(words = word)
+stop_word %>% head(2)
+
+```
+
+
+
+# 純粹詞頻統計
+
+```{r}
+
+```
+
+
+
+```{r fig.width=3, fig.height=3}
+
+data %>% 
+  filter( 屆次 == 16 |  屆次 == 14  ) %>%
+  filter(str_length(words) > 1) %>%
+  # filter(! text_segment %in% c("一個", "就是", "今天")) %>%
+  anti_join(stop_word) %>%
+  group_by(總統) %>%
+  count(words) %>%  ungroup() %>%
+  mutate(words = if_else(words == "人工", "人工智慧", words)) %>%
+  mutate(n = if_else(words == "智慧", 2, n)) %>%
+  pivot_wider(names_from = 總統, values_from = n, values_fill = list(n = 0)) %>%
+  filter(words!="人工" & words!="歷史" & words!="全民" & words!="機制"& words!="模式"& words!="相關" ) %>%
+  mutate(diff_lai = `賴清德` - `蔡英文`) %>%
+  filter(`賴清德` < 5 | `蔡英文` < 5) %>%
+  arrange(-diff_lai) %>%
+  filter(abs(diff_lai) >= 6) %>%
+  mutate(
+    words = reorder(words, diff_lai),
+    diff_cat = if_else(diff_lai>0, "賴清德強調用語", "蔡英文強調用語")
+  ) %>%
+  ggplot() + aes(x=diff_lai, y=words, fill=diff_cat) +
+  geom_col()  +
+  labs(
+    x="詞頻差異", y=NULL,
+    title="賴蔡新任就職比較：賴更暢談「世界」",
+    subtitle="賴稱對岸「中國」首見；國會新局提「政黨」談理性問政"
+  ) +
+  scale_fill_manual(values = c("#9cf0ab", "#5aad69")) +
+  theme_classic() + th +
+  theme( 
+    legend.position = "none" ,    
+    axis.text.y = element_text(size=12,family="jf-jinxuan-3.0 medium", color="#3E3B3A"),
+
+)
+```
+
+```{r fig.width=3, fig.height=3}
+data %>% 
+  filter( 屆次 == 16   ) %>%
+  filter(str_length(words) > 1) %>%
+  anti_join(stop_word) %>%
+  group_by(總統) %>%
+  count(words) %>%  ungroup() %>%
+  mutate(words = if_else(words == "人工", "人工智慧", words)) %>%
+  mutate(n = if_else(words == "智慧", 2, n)) %>%
+  filter(words!="人工" & words!="歷史" & words!="機制"& words!="模式"& words!="相關"  & words!="國人" & words!="已經"& words!="一起"& words!="第一"& words!="成為"& words!="今天"& words!="全民"& words!="持續"& words!="社會"& words!="能夠") %>%
+  filter( n >= 6) %>%
+  # filter(words == "中國")
+  mutate( highlight = if_else(str_detect(words, "中國|戰爭|和平|民主|安全|主權|國家"), "hightlight", "other" ) ) %>%
+  mutate( words = reorder(words, n), ) %>%
+  ggplot() + aes(x=n, y=words, fill=highlight) +
+  geom_col() +  
+  scale_fill_manual(values = c("#5aad69", "#CCCCCC")) +
+  labs(
+    title='賴提"中國" "戰爭"二詞，強調維持現狀',
+    subtitle = "歷年演說稿首見「中國」且出現七次，藍批「更獨」、「更衝」",
+    y=NULL,
+    x="",
+  ) +
+  theme_classic() + 
+  theme(
+    axis.text.y = element_text(size=12,family="jf-jinxuan-3.0 medium", color="#3E3B3A"),
+  ) + 
+  theme( legend.position = "none" ) + th
+```
+
+
+```{r fig.width=3, fig.height=3}
+data %>% 
+  filter( 屆次 == 16   ) %>%
+  filter(str_length(words) > 1) %>%
+  anti_join(stop_word) %>%
+  group_by(總統) %>%
+  count(words) %>%  ungroup() %>%
+  mutate(words = if_else(words == "人工", "人工智慧", words)) %>%
+  mutate(n = if_else(words == "智慧", 2, n)) %>%
+  filter(words!="人工" & words!="歷史" & words!="機制"& words!="模式"& words!="相關"  & words!="國人" & words!="已經"& words!="一起"& words!="第一"& words!="成為"& words!="今天"& words!="全民"& words!="持續"& words!="社會"& words!="能夠") %>%
+  filter( n >= 6) %>%
+  # filter(words == "中國")
+  mutate( highlight = if_else(str_detect(words, "世界|國際|合作|國家|海洋"), "hightlight", "other" ) ) %>%
+  mutate( words = reorder(words, n), ) %>%
+  ggplot() + aes(x=n, y=words, fill=highlight) +
+  geom_col() +  
+  scale_fill_manual(values = c("#5aad69", "#CCCCCC")) +
+  labs(
+    title='一展鴻圖，賴提「繼續壯大國家」',
+    subtitle = "多次強調「世界」、「國際」承蔡英文路線；多次提探索海洋",
+    y=NULL,
+    x="",
+  ) +
+  theme_classic() + 
+  theme(
+    axis.text.y = element_text(size=12,family="jf-jinxuan-3.0 medium", color="#3E3B3A"),
+  ) + 
+  theme( legend.position = "none" ) + th
+```
+
+```{r fig.width=3, fig.height=3}
+data %>% 
+  filter( 屆次 == 16   ) %>%
+  filter(str_length(words) > 1) %>%
+  anti_join(stop_word) %>%
+  group_by(總統) %>%
+  count(words) %>%  ungroup() %>%
+  mutate(words = if_else(words == "人工", "人工智慧", words)) %>%
+  mutate(n = if_else(words == "智慧", 2, n)) %>%
+  filter(words!="人工" & words!="歷史" & words!="機制"& words!="模式"& words!="相關"  & words!="國人" & words!="已經"& words!="一起"& words!="第一"& words!="成為"& words!="今天"& words!="全民"& words!="持續"& words!="社會"& words!="能夠") %>%
+  filter( n >= 6) %>%
+  # filter(words == "中國")
+  mutate( highlight = if_else(str_detect(words, "轉型|產業|發展|未來|推動|人工智慧|投資|經濟|繁榮"), "hightlight", "other" ) ) %>%
+  mutate( words = reorder(words, n), ) %>%
+  ggplot() + aes(x=n, y=words, fill=highlight) +
+  geom_col() +  
+  scale_fill_manual(values = c("#5aad69", "#CCCCCC")) +
+  labs(
+    title='對內促產業升級，憂民之憂',
+    subtitle = "「人工智慧」首入演說，打造繁榮新台灣、做世界繁榮推手",
+    y=NULL,
+    x="",
+  ) +
+  theme_classic() + 
+  theme(
+    axis.text.y = element_text(size=12,family="jf-jinxuan-3.0 medium", color="#3E3B3A"),
+  ) + 
+  theme( legend.position = "none" ) + th
+```
+
+
+
+```{r fig.width=3, fig.height=3}
+data %>% 
+  # filter( 屆次 == 16   ) %>%
+  filter(str_length(words) > 1) %>%
+  anti_join(stop_word) %>%
+  count(屆次, 黨派, 總統, words) %>%  ungroup() %>%
+  mutate(words = if_else(words == "人工", "人工智慧", words)) %>%
+  mutate(n = if_else(words == "智慧", 2, n)) %>%
+  filter(words == "臺灣") %>%
+  mutate( lists = str_c("第",屆次, "屆", " ", 總統)) %>%
+  mutate( lists = reorder(lists, n), ) %>%
+  ggplot() + aes(x=n, y=lists, fill=黨派) +
+  geom_col() +
+  scale_fill_manual(values = c("#326da8", "#5aad69")) +
+  labs(
+    title='賴清德提「臺灣」高達79次',
+    subtitle = "與歷年相比，次數超過扁、蔡時期",
+    y=NULL,
+    x="",
+  ) +
+  theme_classic() + 
+  theme(
+    axis.text.y = element_text(size=12,family="jf-jinxuan-3.0 medium", color="#3E3B3A"),
+  ) + 
+  theme( legend.position = "none" ) + th
+```
+
+```{r fig.width=3, fig.height=3}
+data %>% 
+  # filter( 屆次 == 16   ) %>%
+  filter(str_length(words) > 1) %>%
+  anti_join(stop_word) %>%
+  count(屆次, 黨派, 總統, words) %>%  ungroup() %>%
+  mutate(words = if_else(words == "人工", "人工智慧", words)) %>%
+  mutate(n = if_else(words == "智慧", 2, n)) %>%
+  filter(words == "民主")  %>%
+  mutate( lists = str_c("第",屆次, "屆", " ", 總統)) %>%
+  mutate( lists = reorder(lists, n), ) %>%
+  ggplot() + aes(x=n, y=lists, fill=黨派) +
+  geom_col() +
+  scale_fill_manual(values = c("#326da8", "#5aad69")) +
+  labs(
+    title='賴清德提「臺灣」高達79次',
+    subtitle = "與歷年相比，次數超過扁、蔡時期",
+    y=NULL,
+    x="",
+  ) +
+  theme_classic() + 
+  theme(
+    axis.text.y = element_text(size=12,family="jf-jinxuan-3.0 medium", color="#3E3B3A"),
+  ) + 
+  theme( legend.position = "none" ) + th
+```
